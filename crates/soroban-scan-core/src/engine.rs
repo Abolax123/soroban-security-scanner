@@ -541,17 +541,19 @@ fn annotate_reachability(sources: &[ParsedSource], findings: &mut [Finding]) {
         if reachability == crate::analysis::cfg::Reachability::Unknown {
             continue;
         }
+        // `FunctionSummary::end_line` is where the signature ends, not the
+        // body, so a finding inside the body is never within `line..=end_line`.
+        // The CFG index range starts on the signature line of the function
+        // that owns the body, so match on that instead.
+        let signature_line = range.0;
         let entry_point = sources_by_file.get(&file).and_then(|source| {
             source
                 .functions
                 .iter()
-                .filter(|function| {
-                    function.is_contract_entry_point
-                        && function.line <= finding.location.line
-                        && finding.location.line <= function.end_line
+                .find(|function| {
+                    function.is_contract_entry_point && function.line == signature_line
                 })
                 .map(|function| function.qualified_name.clone())
-                .next()
         });
         finding.exploitability = Some(ExploitabilityContext {
             reachability: reachability.as_str().to_string(),
